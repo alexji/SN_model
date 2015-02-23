@@ -29,14 +29,22 @@ class cosmology:
                 self.Sk = lambda x: np.sin(x)
 
     # times: H, t_lookback, t_age
+    def E(self,z):
+        return np.sqrt(self.Om*(1+z)**3 + self.Ol + self.Ok*(1+z)**2 + self.Or*(1+z)**4)
     def invE(self,z): #1/H(z), but unitless
         return 1.0/np.sqrt(self.Om*(1+z)**3 + self.Ol + self.Ok*(1+z)**2 + self.Or*(1+z)**4)
     def H(self,z): #km/s/Mpc
-        return self.h*100/self.invE(z)
+        return self.h*100*self.E(z)
     def t_lookback(self,z): #in Gyr
         return 9.785/self.h*quad(lambda x: self.invE(x)/(1+x),0,z)[0]
     def t_age(self,z): #in Gyr
         return self.age - self.t_lookback(z)
+
+    def BN98(self,z):
+        """ Bryan and Norman 1998 virial overdensity, assuming Omega_k = 0 """
+        assert(self.flat)
+        x = self.Om * (1.+z)**3. * self.invE(z)**2. - 1.
+        return 18*np.pi*np.pi + 82*x - 39*x*x
 
     # distances: d_comoving, d_luminosity, d_angular
     def integrate_invE(self,z):
@@ -56,7 +64,48 @@ class cosmology:
     def rho_l(self,z):
         return self.Ol*self.rho_c(z)
 
+    # Prada+2012 concentration
+    def Prada_conc(self,z,M):
+        a = 1./(1+z)
+        x = (self.Ol/self.Om)**(1./3)*a
+        D = 2.5*(self.Om/self.Ol)**(1./3) * np.sqrt(1+x**3)/x**1.5 * quad(lambda xx: xx**1.5/(1+xx**3)**1.5,0,x)[0]
+        
+        y = (1.e12)/(M)
+        sigma = D*16.9*(y**.41)/(1+1.102*(y**.2)+6.22*(y**.333))
+        return self._Prada_conc(x,sigma)
+    def _Prada_conc(self,x,sigma):
+        c0 = 3.681; c1 = 5.033; alpha = 6.948; x0 = 0.424
+        def cmin(xx):
+            return c0 + (c1-c0)*(np.arctan(alpha*(xx-x0))/np.pi + .5)
+        siginv0 = 1.047; siginv1 = 1.646; beta = 7.386; x1 = 0.526
+        def siginvmin(xx):
+            return siginv0 + (siginv1-siginv0)*(np.arctan(beta*(xx-x1))/np.pi + .5)
+        B0 = cmin(x)/cmin(1.393)
+        B1 = siginvmin(x)/siginvmin(1.393)
+
+        sigp = B1*sigma
+        A = 2.881; b = 1.257; c = 1.022; d = 0.060
+        Csigp = A*((sigp/b)**c + 1)*np.exp(d/(sigp**2))
+        return B0 * Csigp
+
 if __name__=="__main__":
+    import pylab as plt
+    cosm = cosmology(h=.70,Ol=.73,Om=.27)
+    Monh = np.logspace(10.5,15)
+    M = Monh/cosm.h
+
+    plt.figure()
+    plt.plot(Monh,np.log10(map(lambda MM: cosm.Prada_conc(0,MM),  M)),'k')
+    plt.plot(Monh,np.log10(map(lambda MM: cosm.Prada_conc(0.5,MM),M)),'orange')
+    plt.plot(Monh,np.log10(map(lambda MM: cosm.Prada_conc(1,MM),  M)),'green')
+    plt.plot(Monh,np.log10(map(lambda MM: cosm.Prada_conc(2,MM),  M)),'red')
+    plt.plot(Monh,np.log10(map(lambda MM: cosm.Prada_conc(3,MM),  M)),'cyan')
+    plt.gca().set_xscale('log')
+    plt.ylim((.55,1))
+    plt.xlabel('log M200 (h^-1 Msun)')
+    plt.ylabel('log c200')
+    plt.show()
+def old():
     c1 = cosmology(Om=1,Ol=0,h=0.7,put_in_h=False)
     c2 = cosmology(Om=.25,Ol=0,h=0.7,put_in_h=False)
     c3 = cosmology(Om=0.27,Ol=0.73,h=0.7,put_in_h=False)
