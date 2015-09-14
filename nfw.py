@@ -3,9 +3,6 @@ import cosmology
 from scipy.integrate import quad
 import commah # Correa+2015b
 
-def c_Prada12():
-    pass
-
 class NFW:
     def __init__(self,Mvir,zvir,c,cosm):
         self.Mvir = Mvir # Msun
@@ -15,7 +12,6 @@ class NFW:
         fb = 1./6
         
         if c==None:
-            raise NotImplementedError
             print "Automatically generating concentration from COMMAH"
             output = commah.run("Planck13",zi=zvir,Mi=Mvir,z=[zvir]) # TODO use cosm
             c = np.ravel(output['c'])[0]
